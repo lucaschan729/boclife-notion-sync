@@ -22,6 +22,7 @@ OUT_DIR = "output"
 NOTION_VERSION = "2025-09-03"
 AUTO = "自動生成"
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+NAME_MAX = 200
 
 JS_TABLES = """() => {
   const clean = s => (s || '').replace(/\\s+/g, ' ').trim();
@@ -48,7 +49,7 @@ JS_TABLES = """() => {
       let sib = node.previousElementSibling;
       for (let k = 0; sib && k < 4; k++) {
         const s = clean(sib.textContent);
-        if (s && s.length <= 160 && sib.tagName !== 'TABLE' && !sib.querySelector('table')) ctx.push(s);
+        if (s && s.length <= 200 && sib.tagName !== 'TABLE' && !sib.querySelector('table')) ctx.push(s);
         sib = sib.previousElementSibling;
       }
       node = node.parentElement;
@@ -59,7 +60,7 @@ JS_TABLES = """() => {
         try {
           document.querySelectorAll(sel).forEach(x => {
             const s = clean(x.textContent);
-            if (s && s.length <= 160) ctx.push(s);
+            if (s && s.length <= 200) ctx.push(s);
           });
         } catch (e) {}
       }
@@ -154,6 +155,12 @@ def reason_of(x):
     return ""
 
 
+def clean_kind(k):
+    if "的" in k:
+        k = k.rsplit("的", 1)[1]
+    return re.sub(r"^.*年度", "", k)
+
+
 # ---------- 1. 讀取 ----------
 
 def fetch():
@@ -215,11 +222,11 @@ def pick(t, cats, is_div):
             if len(s) <= 30:
                 m = TYPE.search(s)
                 if m:
-                    kind = m.group(0)
+                    kind = clean_kind(m.group(0))
                     break
     name = ""
     for s in t["ctx"]:
-        if len(s) > 80 or s in cats or TYPE.search(s) or SKIP.search(s):
+        if len(s) > NAME_MAX or s in cats or TYPE.search(s) or SKIP.search(s):
             continue
         if NAME.search(s) and CJK.search(s):
             name = s
@@ -307,7 +314,7 @@ def parse_page(pg, problems):
         seen.add((name, kind))
         if (bad and shown < 6) or i == desk[0]:
             shown += 1
-            print("   表格 %d 的上文：%s" % (i + 1, " ‖ ".join(x[:60] for x in t["ctx"][:8])))
+            print("   表格 %d 的上文：%s" % (i + 1, " ‖ ".join(x[:200] for x in t["ctx"][:8])))
         rows.append([name, data[0], kind] + vals)
 
     if not rows or labels is None:
@@ -340,13 +347,16 @@ def parse_page(pg, problems):
     print("   類別：%s" % "｜".join("%s × %d" % x for x in collections.Counter(r[1] for r in rows).items()))
     print("   類型：%s" % "｜".join("%s × %d" % x for x in kinds.items()))
     print("   沒有數字的格：%s" % "｜".join("%s × %d" % x for x in reasons.most_common()))
-    print("   產品名稱：%s" % "｜".join(names))
+    print("   最長的產品名稱：%s" % max(names, key=len))
     low = [r for r in rows if any(is_num(v) and v < LOW_LIMIT for v in r[NF:])]
     print("   有低於 80%% 的行 %d 行：" % len(low))
     for r in low[:20]:
         print("      %s／%s：%s" % (r[0], r[2], " ".join(
             "%.0f%%" % (v * 100) if is_num(v) else "/" for v in r[NF:])))
     notes = [s for s in pg["notes"] if not any(o != s and o in s for o in pg["notes"])][:5]
+    print("   官網有關 N/A 的說明文字 %d 條：" % len(notes))
+    for s in notes:
+        print("      %s" % s[:300])
     return {"label": label, "is_div": is_div, "rows": rows, "labels": labels, "year": year,
             "reasons": reasons, "notes": notes}
 
