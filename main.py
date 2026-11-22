@@ -72,11 +72,36 @@ JS_TABLES = """() => {
 JS_TEXT = "() => document.body ? document.body.textContent : ''"
 JS_NOTES = """() => {
   const clean = s => (s || '').replace(/\\s+/g, ' ').trim();
-  const out = [];
+  const hit = [];
   document.querySelectorAll('p, li, span, div, small').forEach(e => {
     if (e.closest('table') || e.querySelector('table') || e.children.length > 3) return;
     const s = clean(e.textContent);
-    if (s.length >= 8 && s.length <= 300 && /N[/]A|不適用/.test(s) && !out.includes(s)) out.push(s);
+    if (s.length >= 8 && s.length <= 300 && /N[/]A|不適用/.test(s)) hit.push(e);
+  });
+  const out = [];
+  hit.filter(e => !hit.some(o => o !== e && e.contains(o))).forEach(e => {
+    let s = clean(e.textContent);
+    if (/[，,：:]$/.test(s)) {
+      let node = e, added = 0, stop = false;
+      for (let d = 0; d < 3 && node && added === 0 && !stop; d++) {
+        let sib = node.nextElementSibling;
+        while (sib && added < 8) {
+          const x = clean(sib.textContent);
+          if (sib.tagName === 'TABLE' || sib.querySelector('table') ||
+              /^\\d+\\s*[.、．]/.test(x) || s.length + x.length > 700) {
+            stop = true;
+            break;
+          }
+          if (x) {
+            s += ' ' + x;
+            added++;
+          }
+          sib = sib.nextElementSibling;
+        }
+        node = node.parentElement;
+      }
+    }
+    if (!out.includes(s)) out.push(s);
   });
   return out;
 }"""
@@ -356,7 +381,7 @@ def parse_page(pg, problems):
     notes = [s for s in pg["notes"] if not any(o != s and o in s for o in pg["notes"])][:5]
     print("   官網有關 N/A 的說明文字 %d 條：" % len(notes))
     for s in notes:
-        print("      %s" % s[:300])
+        print("      %s" % s[:800])
     return {"label": label, "is_div": is_div, "rows": rows, "labels": labels, "year": year,
             "reasons": reasons, "notes": notes}
 
@@ -680,11 +705,12 @@ def add_overview(wb, year, today, sheets):
     notes = []
     for title, res, groups in sheets:
         for s in res["notes"]:
-            if s not in notes:
-                notes.append(s)
-    for s in notes[:6]:
+            if s not in [x[1] for x in notes]:
+                notes.append((res["label"], s))
+    for lab, s in notes[:6]:
         r += 1
-        wide(r, "官方網站原文：" + s, 48)
+        text = "官方網站原文（%s）：%s" % (lab, s)
+        wide(r, text, max(32, 16 * math.ceil(units(text) / 100.0) + 8))
 
     r += 2
     section(r, "使用提示")
