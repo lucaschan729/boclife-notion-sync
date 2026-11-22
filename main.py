@@ -74,7 +74,7 @@ JS_NOTES = """() => {
   const clean = s => (s || '').replace(/\\s+/g, ' ').trim();
   const out = [];
   document.querySelectorAll('p, li, span, div, small').forEach(e => {
-    if (e.closest('table') || e.children.length > 3) return;
+    if (e.closest('table') || e.querySelector('table') || e.children.length > 3) return;
     const s = clean(e.textContent);
     if (s.length >= 8 && s.length <= 300 && /N[/]A|不適用/.test(s) && !out.includes(s)) out.push(s);
   });
