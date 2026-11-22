@@ -1,6 +1,13 @@
 name: update
 on:
   workflow_dispatch:
+    inputs:
+      upload:
+        description: 上傳到 Notion
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 2 * 6-7 1"
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -10,8 +17,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -q playwright
+      - run: pip install -q playwright openpyxl requests
       - run: python -m playwright install --with-deps chromium
       - run: sudo apt-get update -q && sudo apt-get install -y -q xvfb
       - name: Run python main.py
         run: xvfb-run -a python main.py
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_URL: ${{ secrets.NOTION_DATABASE_URL }}
+          UPLOAD: ${{ github.event_name == 'schedule' || inputs.upload }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boclife-excel
+          path: output/
+          if-no-files-found: ignore
